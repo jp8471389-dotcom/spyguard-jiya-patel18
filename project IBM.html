@@ -1,0 +1,761 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>SpyGuard — Spyware Detection System</title>
+<style>
+/* ── TOKENS ─────────────────────────────────────────── */
+:root{
+  --bg:#07091a;
+  --bg2:#0d1128;
+  --bg3:#111830;
+  --border:#1e2a4a;
+  --border2:#243060;
+  --accent:#3b82f6;
+  --accent2:#6366f1;
+  --accent3:#22d3ee;
+  --green:#22c55e;
+  --red:#ef4444;
+  --amber:#f59e0b;
+  --purple:#a855f7;
+  --text:#e2e8f0;
+  --text2:#94a3b8;
+  --text3:#64748b;
+  --font:'Courier New',monospace;
+  --sans:'Segoe UI',system-ui,sans-serif;
+  --radius:10px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:14px;min-height:100vh;overflow-x:hidden}
+
+/* ── SCAN-LINE OVERLAY ──────────────────────────────── */
+body::before{content:'';position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(59,130,246,0.015) 2px,rgba(59,130,246,0.015) 4px);z-index:0}
+
+/* ── HEADER ─────────────────────────────────────────── */
+.header{position:sticky;top:0;z-index:100;background:rgba(7,9,26,0.95);backdrop-filter:blur(12px);border-bottom:1px solid var(--border);padding:0 24px;display:flex;align-items:center;gap:16px;height:58px}
+.logo{display:flex;align-items:center;gap:10px;font-family:var(--font);font-size:16px;font-weight:700;color:var(--accent3);letter-spacing:2px;text-transform:uppercase;white-space:nowrap}
+.logo svg{flex-shrink:0}
+.status-pill{display:flex;align-items:center;gap:6px;background:rgba(34,197,94,0.1);border:1px solid rgba(34,197,94,0.3);border-radius:20px;padding:4px 12px;font-size:11px;color:var(--green);font-family:var(--font);letter-spacing:1px;margin-left:auto}
+.pulse{width:7px;height:7px;border-radius:50%;background:var(--green);animation:blink 1.4s infinite}
+@keyframes blink{0%,100%{opacity:1;box-shadow:0 0 0 0 rgba(34,197,94,.4)}50%{opacity:.5;box-shadow:0 0 0 4px rgba(34,197,94,0)}}
+
+/* ── NAV ────────────────────────────────────────────── */
+.nav{display:flex;gap:4px;padding:12px 24px;background:var(--bg2);border-bottom:1px solid var(--border);overflow-x:auto}
+.nav::-webkit-scrollbar{height:0}
+.nav-btn{display:flex;align-items:center;gap:7px;padding:7px 16px;border-radius:6px;border:1px solid transparent;background:transparent;color:var(--text3);font-size:13px;cursor:pointer;white-space:nowrap;transition:.15s;font-family:inherit}
+.nav-btn svg{opacity:.7}
+.nav-btn:hover,.nav-btn.active{background:rgba(59,130,246,.15);border-color:rgba(59,130,246,.35);color:var(--accent)}
+.nav-btn.active{color:#fff}
+
+/* ── LAYOUT ─────────────────────────────────────────── */
+.page{display:none;padding:24px;max-width:1200px;margin:0 auto;position:relative;z-index:1}
+.page.show{display:block}
+.g2{display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:16px;margin-bottom:16px}
+.g3{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin-bottom:16px}
+.g4{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:16px}
+
+/* ── CARDS ──────────────────────────────────────────── */
+.card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:18px;position:relative;overflow:hidden}
+.card::before{content:'';position:absolute;top:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,rgba(59,130,246,.3),transparent)}
+.card-title{font-size:11px;font-weight:600;color:var(--text3);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:14px;display:flex;align-items:center;gap:7px}
+.card-title svg{opacity:.8}
+
+/* ── METRIC TILES ───────────────────────────────────── */
+.tile{background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:16px;text-align:center}
+.tile-num{font-size:30px;font-weight:700;font-family:var(--font);line-height:1;margin:6px 0 4px}
+.tile-lbl{font-size:11px;color:var(--text2);letter-spacing:.5px}
+.tile-sub{font-size:10px;color:var(--text3);margin-top:3px}
+
+/* ── BADGES ─────────────────────────────────────────── */
+.badge{display:inline-block;padding:3px 9px;border-radius:4px;font-size:10px;font-weight:600;letter-spacing:.5px;text-transform:uppercase;font-family:var(--font)}
+.b-red{background:rgba(239,68,68,.15);color:#fca5a5;border:1px solid rgba(239,68,68,.3)}
+.b-amber{background:rgba(245,158,11,.12);color:#fcd34d;border:1px solid rgba(245,158,11,.3)}
+.b-green{background:rgba(34,197,94,.12);color:#86efac;border:1px solid rgba(34,197,94,.3)}
+.b-blue{background:rgba(59,130,246,.15);color:#93c5fd;border:1px solid rgba(59,130,246,.3)}
+.b-purple{background:rgba(168,85,247,.15);color:#d8b4fe;border:1px solid rgba(168,85,247,.3)}
+.b-cyan{background:rgba(34,211,238,.12);color:#67e8f9;border:1px solid rgba(34,211,238,.3)}
+
+/* ── THREAT ROWS ────────────────────────────────────── */
+.t-row{display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--border)}
+.t-row:last-child{border:none}
+.t-icon{width:38px;height:38px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0}
+.t-info{flex:1;min-width:0}
+.t-name{font-size:13px;font-weight:600;color:var(--text)}
+.t-sub{font-size:11px;color:var(--text3);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-family:var(--font)}
+
+/* ── PROGRESS BAR ───────────────────────────────────── */
+.prog-wrap{height:5px;background:var(--border);border-radius:3px;margin-top:6px}
+.prog-bar{height:100%;border-radius:3px;transition:.4s}
+
+/* ── CHART ──────────────────────────────────────────── */
+.chart{display:flex;align-items:flex-end;gap:8px;height:110px;padding-top:10px}
+.bar-col{display:flex;flex-direction:column;align-items:center;gap:4px;flex:1}
+.bar{width:100%;border-radius:4px 4px 0 0;transition:.6s;position:relative}
+.bar-val{font-size:10px;color:var(--text2);font-family:var(--font)}
+.bar-lbl{font-size:10px;color:var(--text3)}
+
+/* ── NETWORK TABLE ──────────────────────────────────── */
+.net-table{width:100%;border-collapse:collapse;font-size:12px}
+.net-table th{text-align:left;padding:7px 10px;color:var(--text3);font-weight:600;font-size:10px;letter-spacing:1px;text-transform:uppercase;border-bottom:1px solid var(--border)}
+.net-table td{padding:9px 10px;border-bottom:1px solid rgba(30,42,74,.5);vertical-align:middle;font-family:var(--font);font-size:11px}
+.net-table tr:last-child td{border:none}
+.net-table tr:hover td{background:rgba(59,130,246,.04)}
+.dot{width:8px;height:8px;border-radius:50%;display:inline-block}
+.dot-red{background:var(--red);animation:blink 1.2s infinite;box-shadow:0 0 6px var(--red)}
+.dot-amber{background:var(--amber)}
+.dot-green{background:var(--green)}
+
+/* ── SCAN SECTION ───────────────────────────────────── */
+.scan-row{display:flex;gap:8px;margin-bottom:14px}
+.scan-input{flex:1;padding:10px 14px;border-radius:7px;border:1px solid var(--border2);background:var(--bg3);color:var(--text);font-size:13px;font-family:var(--font);outline:none;transition:.2s}
+.scan-input:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(59,130,246,.1)}
+.scan-input::placeholder{color:var(--text3)}
+.btn{padding:9px 18px;border-radius:7px;border:none;cursor:pointer;font-size:13px;font-weight:600;font-family:inherit;transition:.15s;letter-spacing:.3px}
+.btn-primary{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff}
+.btn-primary:hover{filter:brightness(1.1);transform:translateY(-1px)}
+.btn-block{display:block;width:100%;text-align:left;padding:11px 16px;margin-bottom:8px;background:var(--bg3);border:1px solid var(--border);color:var(--text2)}
+.btn-block:hover{border-color:var(--accent);color:var(--text);background:rgba(59,130,246,.08)}
+.btn-block:last-child{margin-bottom:0}
+
+/* ── SCAN RESULT ITEMS ──────────────────────────────── */
+.result-item{display:flex;gap:12px;padding:13px 14px;border-radius:8px;border:1px solid var(--border);margin-bottom:8px;animation:slideIn .3s ease}
+@keyframes slideIn{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:translateY(0)}}
+.result-item.r-danger{border-color:rgba(239,68,68,.4);background:rgba(239,68,68,.06)}
+.result-item.r-warn{border-color:rgba(245,158,11,.4);background:rgba(245,158,11,.06)}
+.result-item.r-clean{border-color:rgba(34,197,94,.4);background:rgba(34,197,94,.06)}
+.r-icon{font-size:22px;flex-shrink:0}
+.r-title{font-size:13px;font-weight:600;margin-bottom:3px}
+.r-sub{font-size:11px;color:var(--text3);font-family:var(--font);line-height:1.5}
+
+/* ── SPINNING LOADER ────────────────────────────────── */
+.spinner{width:50px;height:50px;border-radius:50%;border:3px solid var(--border);border-top-color:var(--accent);animation:spin 1s linear infinite;margin:0 auto 14px}
+@keyframes spin{to{transform:rotate(360deg)}}
+.scanning-box{text-align:center;padding:30px 20px}
+.scan-progress-bar{height:3px;background:var(--border);border-radius:2px;margin-top:12px;overflow:hidden}
+.scan-progress-fill{height:100%;background:linear-gradient(90deg,var(--accent),var(--accent3));border-radius:2px;animation:progress 2.5s ease forwards}
+@keyframes progress{from{width:0}to{width:100%}}
+
+/* ── THREAT LIBRARY ─────────────────────────────────── */
+.threat-card{border:1px solid var(--border);border-radius:8px;padding:14px;margin-bottom:10px;transition:.2s}
+.threat-card:hover{border-color:var(--border2);background:rgba(59,130,246,.03)}
+.tc-head{display:flex;align-items:center;gap:11px;margin-bottom:8px}
+.tc-icon{width:36px;height:36px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:17px;flex-shrink:0}
+.tc-name{font-size:14px;font-weight:700;color:var(--text)}
+.tc-type{font-size:11px;color:var(--text3);margin-top:1px}
+.tc-desc{font-size:12px;color:var(--text2);line-height:1.6;margin-bottom:8px}
+.tc-tags{display:flex;gap:5px;flex-wrap:wrap}
+
+/* ── TIMELINE ───────────────────────────────────────── */
+.tl-item{display:flex;gap:13px;padding:11px 0;border-bottom:1px solid var(--border)}
+.tl-item:last-child{border:none}
+.tl-time{font-size:10px;color:var(--text3);font-family:var(--font);min-width:54px;padding-top:3px}
+.tl-dot{width:10px;height:10px;border-radius:50%;margin-top:4px;flex-shrink:0}
+.tl-body{flex:1}
+.tl-title{font-size:13px;font-weight:600;color:var(--text);margin-bottom:2px}
+.tl-sub{font-size:11px;color:var(--text3);font-family:var(--font);line-height:1.4}
+
+/* ── HERO ───────────────────────────────────────────── */
+.hero{background:linear-gradient(135deg,#07091a 0%,#0a0e2a 40%,#070f1f 100%);border:1px solid var(--border);border-radius:14px;padding:32px 28px;margin-bottom:20px;position:relative;overflow:hidden;text-align:center}
+.hero::after{content:'';position:absolute;top:-60px;right:-60px;width:240px;height:240px;background:radial-gradient(circle,rgba(59,130,246,.12) 0%,transparent 70%);pointer-events:none}
+.hero::before{content:'';position:absolute;bottom:-80px;left:-40px;width:200px;height:200px;background:radial-gradient(circle,rgba(99,102,241,.08) 0%,transparent 70%);pointer-events:none}
+.hero h1{font-size:26px;font-weight:800;font-family:var(--font);letter-spacing:3px;text-transform:uppercase;background:linear-gradient(135deg,var(--accent3),var(--accent),var(--accent2));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;margin-bottom:8px}
+.hero-sub{font-size:13px;color:var(--text3);max-width:480px;margin:0 auto 22px;line-height:1.7}
+.hero-stats{display:flex;justify-content:center;gap:40px;flex-wrap:wrap}
+.hs{text-align:center}
+.hs-num{font-size:24px;font-weight:800;font-family:var(--font);color:var(--text)}
+.hs-lbl{font-size:10px;color:var(--text3);letter-spacing:1px;text-transform:uppercase;margin-top:2px}
+
+/* ── MODULE STATUS ──────────────────────────────────── */
+.mod-row{display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px solid var(--border)}
+.mod-row:last-child{border:none}
+.mod-name{font-size:12px;color:var(--text);font-family:var(--font)}
+.mod-sub{font-size:10px;color:var(--text3);margin-top:1px}
+
+/* ── BEHAVIOR GRID ──────────────────────────────────── */
+.beh-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:4px}
+.beh-cell{padding:10px;border-radius:6px;text-align:center;font-size:12px;font-weight:600;font-family:var(--font)}
+
+/* ── SCROLLBAR ──────────────────────────────────────── */
+::-webkit-scrollbar{width:5px;height:5px}
+::-webkit-scrollbar-track{background:var(--bg)}
+::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px}
+
+/* ── SECTION HEADING ────────────────────────────────── */
+.sec-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px}
+.sec-title{font-size:18px;font-weight:700;color:var(--text)}
+.sec-sub{font-size:12px;color:var(--text3);margin-top:2px}
+
+/* ── LIVE TAG ───────────────────────────────────────── */
+.live-tag{display:flex;align-items:center;gap:5px;font-size:10px;font-family:var(--font);color:var(--green);letter-spacing:1px}
+
+/* ── FOOTER ─────────────────────────────────────────── */
+.footer{text-align:center;padding:24px;color:var(--text3);font-size:11px;font-family:var(--font);border-top:1px solid var(--border);margin-top:32px;letter-spacing:.5px}
+
+/* ── RESPONSIVE ─────────────────────────────────────── */
+@media(max-width:600px){
+  .header{padding:0 14px}
+  .page{padding:14px}
+  .hero h1{font-size:18px}
+  .hero-stats{gap:20px}
+  .hs-num{font-size:18px}
+  .g2,.g3,.g4{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<header class="header">
+  <div class="logo">
+    <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
+      <polygon points="14,2 26,8 26,20 14,26 2,20 2,8" stroke="#22d3ee" stroke-width="1.5" fill="rgba(34,211,238,.08)"/>
+      <polygon points="14,7 21,11 21,17 14,21 7,17 7,11" stroke="#3b82f6" stroke-width="1" fill="rgba(59,130,246,.1)"/>
+      <circle cx="14" cy="14" r="3" fill="#22d3ee"/>
+    </svg>
+    SPYGUARD
+  </div>
+  <div class="status-pill"><div class="pulse"></div>PROTECTION ACTIVE</div>
+</header>
+
+<!-- NAV -->
+<nav class="nav">
+  <button class="nav-btn active" onclick="show('dashboard',this)">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+    Dashboard
+  </button>
+  <button class="nav-btn" onclick="show('scan',this)">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2"/><path d="M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>
+    System Scan
+  </button>
+  <button class="nav-btn" onclick="show('threats',this)">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+    Threat Library
+  </button>
+  <button class="nav-btn" onclick="show('network',this)">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="5" r="2"/><circle cx="5" cy="19" r="2"/><circle cx="19" cy="19" r="2"/><path d="M12 7v4M10 19h4M7 18l-1-5M17 18l1-5"/></svg>
+    Network
+  </button>
+  <button class="nav-btn" onclick="show('logs',this)">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+    Activity Log
+  </button>
+</nav>
+
+<!-- ══════════════════════════════════════════ -->
+<!-- PAGE: DASHBOARD                           -->
+<!-- ══════════════════════════════════════════ -->
+<main id="dashboard" class="page show">
+
+  <!-- Hero -->
+  <div class="hero">
+    <h1>⬡ SpyGuard Detection System</h1>
+    <p class="hero-sub">Real-time spyware monitoring · Network traffic analysis · Behavioral AI engine · IBM Internship Project</p>
+    <div class="hero-stats">
+      <div class="hs"><div class="hs-num" id="h-threats" style="color:var(--red)">12</div><div class="hs-lbl">Threats Found</div></div>
+      <div class="hs"><div class="hs-num" id="h-scanned" style="color:var(--accent3)">3,847</div><div class="hs-lbl">Files Scanned</div></div>
+      <div class="hs"><div class="hs-num" id="h-blocked" style="color:var(--green)">234</div><div class="hs-lbl">Attacks Blocked</div></div>
+      <div class="hs"><div class="hs-num" id="h-rate" style="color:var(--accent)">99.2%</div><div class="hs-lbl">Block Rate</div></div>
+    </div>
+  </div>
+
+  <!-- Metric tiles -->
+  <div class="g4">
+    <div class="tile">
+      <div class="tile-lbl">Risk Score</div>
+      <div class="tile-num" style="color:var(--red)">72</div>
+      <div class="tile-sub" style="color:var(--red)">▲ HIGH RISK</div>
+    </div>
+    <div class="tile">
+      <div class="tile-lbl">Active Threats</div>
+      <div class="tile-num" style="color:var(--amber)">3</div>
+      <div class="tile-sub">Quarantined: 9</div>
+    </div>
+    <div class="tile">
+      <div class="tile-lbl">Network Alerts</div>
+      <div class="tile-num" style="color:var(--amber)">5</div>
+      <div class="tile-sub">Suspicious IPs</div>
+    </div>
+    <div class="tile">
+      <div class="tile-lbl">CPU Usage</div>
+      <div class="tile-num" id="cpu-tile" style="color:var(--accent)">34%</div>
+      <div class="tile-sub">Normal range</div>
+    </div>
+  </div>
+
+  <div class="g2">
+
+    <!-- Active Threats -->
+    <div class="card">
+      <div class="card-title">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        Active Threats
+      </div>
+      <div class="t-row">
+        <div class="t-icon" style="background:rgba(239,68,68,.15)">🦠</div>
+        <div class="t-info">
+          <div class="t-name">Pegasus-variant.dll</div>
+          <div class="t-sub">C:\Windows\System32\svchost32.dll</div>
+        </div>
+        <span class="badge b-red">Critical</span>
+      </div>
+      <div class="t-row">
+        <div class="t-icon" style="background:rgba(245,158,11,.12)">⌨️</div>
+        <div class="t-info">
+          <div class="t-name">KeyloggerX.exe</div>
+          <div class="t-sub">%AppData%\Roaming\msupdate.exe</div>
+        </div>
+        <span class="badge b-amber">High</span>
+      </div>
+      <div class="t-row">
+        <div class="t-icon" style="background:rgba(245,158,11,.12)">📡</div>
+        <div class="t-info">
+          <div class="t-name">RemoteAccess.trojan</div>
+          <div class="t-sub">Hidden process · PID 4821</div>
+        </div>
+        <span class="badge b-amber">High</span>
+      </div>
+      <div class="t-row">
+        <div class="t-icon" style="background:rgba(34,197,94,.1)">🍪</div>
+        <div class="t-info">
+          <div class="t-name">adware.cookietrack</div>
+          <div class="t-sub">Browser ext · ID 88fa2</div>
+        </div>
+        <span class="badge b-green">Low</span>
+      </div>
+    </div>
+
+    <!-- 7-day chart -->
+    <div class="card">
+      <div class="card-title">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+        Detections — Last 7 Days
+      </div>
+      <div class="chart" id="chart"></div>
+    </div>
+
+  </div>
+
+  <div class="g2">
+
+    <!-- Security Modules -->
+    <div class="card">
+      <div class="card-title">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+        Security Modules
+      </div>
+      <div class="mod-row">
+        <div><div class="mod-name">Real-time File Scanning</div><div class="mod-sub">Signature + heuristic engine</div></div>
+        <div><span class="badge b-green">Active</span><div class="prog-wrap" style="width:80px;margin-top:5px"><div class="prog-bar" style="width:96%;background:var(--green)"></div></div></div>
+      </div>
+      <div class="mod-row">
+        <div><div class="mod-name">Network Traffic Analysis</div><div class="mod-sub">Deep packet inspection</div></div>
+        <div><span class="badge b-blue">Active</span><div class="prog-wrap" style="width:80px;margin-top:5px"><div class="prog-bar" style="width:88%;background:var(--accent)"></div></div></div>
+      </div>
+      <div class="mod-row">
+        <div><div class="mod-name">Process Behaviour Monitor</div><div class="mod-sub">Kernel-level hooking detection</div></div>
+        <div><span class="badge b-amber">Partial</span><div class="prog-wrap" style="width:80px;margin-top:5px"><div class="prog-bar" style="width:62%;background:var(--amber)"></div></div></div>
+      </div>
+      <div class="mod-row">
+        <div><div class="mod-name">Heuristic AI Engine</div><div class="mod-sub">ML anomaly detection</div></div>
+        <div><span class="badge b-purple">Learning</span><div class="prog-wrap" style="width:80px;margin-top:5px"><div class="prog-bar" style="width:75%;background:var(--purple)"></div></div></div>
+      </div>
+    </div>
+
+    <!-- Behavior Score -->
+    <div class="card">
+      <div class="card-title">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+        System Behavior Score
+      </div>
+      <div class="beh-grid">
+        <div class="beh-cell" style="background:rgba(34,197,94,.08);border:1px solid rgba(34,197,94,.25);color:var(--green)">✅ NORMAL<br><span style="font-size:10px;font-weight:400;color:var(--text3)">Memory access</span></div>
+        <div class="beh-cell" style="background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.3);color:#fca5a5">⛔ ANOMALY<br><span style="font-size:10px;font-weight:400;color:var(--text3)">Keystroke capture</span></div>
+        <div class="beh-cell" style="background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.3);color:var(--amber)">⚠ SUSPECT<br><span style="font-size:10px;font-weight:400;color:var(--text3)">Screen recording</span></div>
+        <div class="beh-cell" style="background:rgba(34,197,94,.08);border:1px solid rgba(34,197,94,.25);color:var(--green)">✅ CLEAN<br><span style="font-size:10px;font-weight:400;color:var(--text3)">Camera/mic access</span></div>
+      </div>
+      <div style="margin-top:14px;padding:12px;background:var(--bg3);border-radius:7px;border:1px solid var(--border)">
+        <div style="font-size:10px;color:var(--text3);font-family:var(--font);letter-spacing:1px;margin-bottom:6px">DATA EXFILTRATION RISK</div>
+        <div style="font-size:22px;font-weight:800;color:var(--red);font-family:var(--font)">HIGH</div>
+        <div style="font-size:11px;color:var(--text3);margin-top:3px">847 MB outbound today · above baseline</div>
+      </div>
+    </div>
+
+  </div>
+</main>
+
+<!-- ══════════════════════════════════════════ -->
+<!-- PAGE: SYSTEM SCAN                         -->
+<!-- ══════════════════════════════════════════ -->
+<main id="scan" class="page">
+  <div class="sec-head">
+    <div><div class="sec-title">System Scan</div><div class="sec-sub">Enter file path, URL, or process name — or run a quick scan below</div></div>
+  </div>
+
+  <div class="g2">
+    <div class="card">
+      <div class="card-title">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        File / URL / Process Scanner
+      </div>
+      <div class="scan-row">
+        <input class="scan-input" id="scan-input" placeholder="e.g. keylogger.exe · msupdate · http://192.168.1.x · google.com"/>
+        <button class="btn btn-primary" onclick="runScan()">SCAN</button>
+      </div>
+      <div id="scan-results"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V9z"/></svg>
+        Quick Scan Modes
+      </div>
+      <button class="btn btn-block" onclick="quickScan('memory')">🧠  Memory Scan — running processes</button>
+      <button class="btn btn-block" onclick="quickScan('startup')">🚀  Startup Entry Scan</button>
+      <button class="btn btn-block" onclick="quickScan('browser')">🌐  Browser Extension Scan</button>
+      <button class="btn btn-block" onclick="quickScan('ports')">📡  Network Port Scan</button>
+      <button class="btn btn-block" onclick="quickScan('full')" style="border-color:rgba(239,68,68,.3);color:var(--red)">🛡️  Full System Deep Scan</button>
+    </div>
+  </div>
+
+  <div class="card" id="quick-result" style="display:none"></div>
+</main>
+
+<!-- ══════════════════════════════════════════ -->
+<!-- PAGE: THREAT LIBRARY                      -->
+<!-- ══════════════════════════════════════════ -->
+<main id="threats" class="page">
+  <div class="sec-head">
+    <div><div class="sec-title">Spyware Threat Library</div><div class="sec-sub">Known threats detected by SpyGuard's signature database</div></div>
+    <span class="badge b-blue">5 Entries</span>
+  </div>
+  <div class="card">
+
+    <div class="threat-card">
+      <div class="tc-head">
+        <div class="tc-icon" style="background:rgba(239,68,68,.12)">🦠</div>
+        <div style="flex:1"><div class="tc-name">Pegasus Spyware</div><div class="tc-type">Advanced Persistent Threat · Mobile</div></div>
+        <span class="badge b-red">Critical</span>
+      </div>
+      <div class="tc-desc">NSO Group's state-sponsored mobile surveillance tool. Exploits zero-day vulnerabilities to gain root access on iOS/Android without user interaction. Silently intercepts calls, messages, camera, microphone, and GPS data.</div>
+      <div class="tc-tags"><span class="badge b-red">Zero-day exploit</span><span class="badge b-purple">APT</span><span class="badge b-cyan">Kernel-level</span><span class="badge b-amber">No-click infection</span></div>
+    </div>
+
+    <div class="threat-card">
+      <div class="tc-head">
+        <div class="tc-icon" style="background:rgba(245,158,11,.1)">🕵️</div>
+        <div style="flex:1"><div class="tc-name">FinFisher / FinSpy</div><div class="tc-type">Government Surveillance Trojan · Cross-platform</div></div>
+        <span class="badge b-amber">High</span>
+      </div>
+      <div class="tc-desc">Commercial surveillance software sold to law enforcement. Captures keystrokes, screenshots, and webcam video. Uses rootkit techniques and encrypted C2 communications to evade detection by conventional antivirus tools.</div>
+      <div class="tc-tags"><span class="badge b-amber">Keylogger</span><span class="badge b-purple">Rootkit</span><span class="badge b-blue">Encrypted C2</span><span class="badge b-red">Webcam hijack</span></div>
+    </div>
+
+    <div class="threat-card">
+      <div class="tc-head">
+        <div class="tc-icon" style="background:rgba(168,85,247,.1)">🖥️</div>
+        <div style="flex:1"><div class="tc-name">DarkComet RAT</div><div class="tc-type">Remote Access Trojan · Windows</div></div>
+        <span class="badge b-amber">High</span>
+      </div>
+      <div class="tc-desc">A widely distributed Remote Administration Tool abused for mass espionage. Grants attackers full desktop control, keystroke logging, webcam access, password theft, and file exfiltration over TCP.</div>
+      <div class="tc-tags"><span class="badge b-amber">RAT</span><span class="badge b-red">Desktop control</span><span class="badge b-blue">File exfil</span><span class="badge b-purple">Persistence</span></div>
+    </div>
+
+    <div class="threat-card">
+      <div class="tc-head">
+        <div class="tc-icon" style="background:rgba(59,130,246,.1)">🍪</div>
+        <div style="flex:1"><div class="tc-name">CoolWebSearch Adware</div><div class="tc-type">Browser Hijacker · Windows</div></div>
+        <span class="badge b-blue">Medium</span>
+      </div>
+      <div class="tc-desc">Aggressive browser hijacker that redirects search queries, tracks full browsing history, and silently exfiltrates data to ad servers. Often distributed as a bundled installer in free software. Modifies DNS and browser settings.</div>
+      <div class="tc-tags"><span class="badge b-blue">Browser hijack</span><span class="badge b-amber">Data harvesting</span><span class="badge b-cyan">DNS tampering</span></div>
+    </div>
+
+    <div class="threat-card">
+      <div class="tc-head">
+        <div class="tc-icon" style="background:rgba(239,68,68,.08)">📱</div>
+        <div style="flex:1"><div class="tc-name">FlexiSpy Stalkerware</div><div class="tc-type">Commercial Stalkerware · iOS / Android</div></div>
+        <span class="badge b-amber">High</span>
+      </div>
+      <div class="tc-desc">Commercially sold stalkerware marketed for parental monitoring but widely misused for domestic surveillance. Hides from the device's app list, monitors SMS, calls, social media, GPS location, and media files.</div>
+      <div class="tc-tags"><span class="badge b-amber">Hidden process</span><span class="badge b-red">Privacy violation</span><span class="badge b-purple">Location tracking</span></div>
+    </div>
+
+  </div>
+</main>
+
+<!-- ══════════════════════════════════════════ -->
+<!-- PAGE: NETWORK                             -->
+<!-- ══════════════════════════════════════════ -->
+<main id="network" class="page">
+  <div class="sec-head">
+    <div><div class="sec-title">Network Monitor</div><div class="sec-sub">Live connection tracking & exfiltration detection</div></div>
+    <div class="live-tag"><div class="pulse"></div>LIVE</div>
+  </div>
+
+  <div class="card" style="margin-bottom:16px">
+    <div class="card-title">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+      Active Connections
+    </div>
+    <div style="overflow-x:auto">
+    <table class="net-table">
+      <thead><tr><th>Status</th><th>Process</th><th>Local</th><th>Remote IP</th><th>Port</th><th>Country</th><th>Risk</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><span class="dot dot-red"></span></td>
+          <td style="color:var(--red);font-weight:700">svchost32.dll</td>
+          <td>:52841</td><td>185.220.101.47</td><td>9001</td><td>🇷🇺 RU</td>
+          <td><span class="badge b-red">Critical</span></td>
+        </tr>
+        <tr>
+          <td><span class="dot dot-amber"></span></td>
+          <td style="color:var(--amber)">msupdate.exe</td>
+          <td>:49201</td><td>45.142.212.100</td><td>4444</td><td>🇳🇱 NL</td>
+          <td><span class="badge b-amber">Suspicious</span></td>
+        </tr>
+        <tr>
+          <td><span class="dot dot-green"></span></td>
+          <td>chrome.exe</td>
+          <td>:443</td><td>142.250.80.100</td><td>443</td><td>🇺🇸 US</td>
+          <td><span class="badge b-green">Safe</span></td>
+        </tr>
+        <tr>
+          <td><span class="dot dot-green"></span></td>
+          <td>System</td>
+          <td>:445</td><td>192.168.1.1</td><td>445</td><td>🏠 LAN</td>
+          <td><span class="badge b-green">Safe</span></td>
+        </tr>
+        <tr>
+          <td><span class="dot dot-amber"></span></td>
+          <td>unknown.exe</td>
+          <td>:8080</td><td>91.108.4.100</td><td>8080</td><td>🇩🇪 DE</td>
+          <td><span class="badge b-amber">Monitor</span></td>
+        </tr>
+        <tr>
+          <td><span class="dot dot-green"></span></td>
+          <td>python.exe</td>
+          <td>:5000</td><td>127.0.0.1</td><td>5000</td><td>🖥️ Local</td>
+          <td><span class="badge b-green">Safe</span></td>
+        </tr>
+      </tbody>
+    </table>
+    </div>
+  </div>
+
+  <div class="g3">
+    <div class="tile">
+      <div class="tile-lbl">Outbound Today</div>
+      <div class="tile-num" id="out-mb" style="color:var(--red)">847 MB</div>
+      <div class="tile-sub" style="color:var(--red)">⚠ Above baseline</div>
+    </div>
+    <div class="tile">
+      <div class="tile-lbl">Inbound Today</div>
+      <div class="tile-num" style="color:var(--accent)">1.2 GB</div>
+      <div class="tile-sub">Normal range</div>
+    </div>
+    <div class="tile">
+      <div class="tile-lbl">Blocked Requests</div>
+      <div class="tile-num" style="color:var(--green)">234</div>
+      <div class="tile-sub">By firewall rules</div>
+    </div>
+    <div class="tile">
+      <div class="tile-lbl">C2 Connections</div>
+      <div class="tile-num" style="color:var(--red)">2</div>
+      <div class="tile-sub">Command & Control</div>
+    </div>
+    <div class="tile">
+      <div class="tile-lbl">Suspicious IPs</div>
+      <div class="tile-num" style="color:var(--amber)">5</div>
+      <div class="tile-sub">Flagged by threat intel</div>
+    </div>
+    <div class="tile">
+      <div class="tile-lbl">DNS Queries</div>
+      <div class="tile-num" id="dns-count" style="color:var(--accent3)">1,204</div>
+      <div class="tile-sub">Since boot</div>
+    </div>
+  </div>
+</main>
+
+<!-- ══════════════════════════════════════════ -->
+<!-- PAGE: ACTIVITY LOG                        -->
+<!-- ══════════════════════════════════════════ -->
+<main id="logs" class="page">
+  <div class="sec-head">
+    <div><div class="sec-title">Security Event Log</div><div class="sec-sub">Chronological record of all detection events</div></div>
+    <span class="badge b-red">3 Critical</span>
+  </div>
+  <div class="card">
+    <div class="tl-item">
+      <div class="tl-time">14:32:11</div>
+      <div class="tl-dot" style="background:var(--red);box-shadow:0 0 6px var(--red)"></div>
+      <div class="tl-body"><div class="tl-title">⛔ Spyware blocked — Pegasus-variant.dll</div><div class="tl-sub">Process terminated · File quarantined · Hash: a3f1b2c9d4e5f6 · Source: email attachment</div></div>
+    </div>
+    <div class="tl-item">
+      <div class="tl-time">14:18:44</div>
+      <div class="tl-dot" style="background:var(--amber)"></div>
+      <div class="tl-body"><div class="tl-title">⚠ Suspicious outbound connection</div><div class="tl-sub">msupdate.exe → 45.142.212.100:4444 (known Metasploit port) · 12 MB sent</div></div>
+    </div>
+    <div class="tl-item">
+      <div class="tl-time">13:55:02</div>
+      <div class="tl-dot" style="background:var(--amber)"></div>
+      <div class="tl-body"><div class="tl-title">⚠ Keylogger pattern detected</div><div class="tl-sub">Heuristic engine flagged keyboard hook API in PID 4821 · Process: unknown.exe</div></div>
+    </div>
+    <div class="tl-item">
+      <div class="tl-time">12:40:17</div>
+      <div class="tl-dot" style="background:var(--green)"></div>
+      <div class="tl-body"><div class="tl-title">✅ Scheduled scan complete — 1,204 files</div><div class="tl-sub">3 threats quarantined · 0 false positives · Scan duration: 4m 32s</div></div>
+    </div>
+    <div class="tl-item">
+      <div class="tl-time">11:22:09</div>
+      <div class="tl-dot" style="background:var(--red)"></div>
+      <div class="tl-body"><div class="tl-title">⛔ Malicious URL blocked</div><div class="tl-sub">http://185.220.101.47/payload.exe — blocked before download · User: admin</div></div>
+    </div>
+    <div class="tl-item">
+      <div class="tl-time">10:45:33</div>
+      <div class="tl-dot" style="background:var(--red)"></div>
+      <div class="tl-body"><div class="tl-title">⛔ Browser extension quarantined</div><div class="tl-sub">Ext ID 88fa2 — accessing keystrokes + full page data on all sites · Publisher unverified</div></div>
+    </div>
+    <div class="tl-item">
+      <div class="tl-time">10:05:33</div>
+      <div class="tl-dot" style="background:var(--accent)"></div>
+      <div class="tl-body"><div class="tl-title">🔄 Threat database updated</div><div class="tl-sub">12,847 new signatures · Engine v4.2.1 · Source: IBM X-Force threat feed</div></div>
+    </div>
+    <div class="tl-item">
+      <div class="tl-time">09:00:00</div>
+      <div class="tl-dot" style="background:var(--accent3)"></div>
+      <div class="tl-body"><div class="tl-title">🛡️ SpyGuard started — all modules online</div><div class="tl-sub">5 modules initialized · Real-time protection enabled · Host: DESKTOP-IBM01</div></div>
+    </div>
+  </div>
+</main>
+
+<footer class="footer">SPYGUARD v1.0 · IBM INTERNSHIP PROJECT · CYBERSECURITY DIVISION · ALL SYSTEMS OPERATIONAL</footer>
+
+<script>
+// ── NAVIGATION ─────────────────────────────────────
+function show(id, btn){
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('show'));
+  document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
+  document.getElementById(id).classList.add('show');
+  btn.classList.add('active');
+}
+
+// ── DASHBOARD CHART ─────────────────────────────────
+(function buildChart(){
+  const days=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+  const vals=[4,7,2,11,6,3,8];
+  const cols=['#3b82f6','#ef4444','#22c55e','#ef4444','#f59e0b','#22c55e','#a855f7'];
+  const max=Math.max(...vals);
+  const c=document.getElementById('chart');
+  days.forEach((d,i)=>{
+    const h=Math.round(vals[i]/max*90);
+    c.innerHTML+=`<div class="bar-col">
+      <div class="bar-val">${vals[i]}</div>
+      <div class="bar" style="height:${h}px;background:${cols[i]};min-height:4px"></div>
+      <div class="bar-lbl">${d}</div>
+    </div>`;
+  });
+})();
+
+// ── LIVE CPU ─────────────────────────────────────────
+setInterval(()=>{
+  const v=28+Math.floor(Math.random()*18);
+  const el=document.getElementById('cpu-tile');
+  if(el) el.textContent=v+'%';
+},3000);
+
+// ── LIVE DNS COUNTER ─────────────────────────────────
+let dns=1204;
+setInterval(()=>{
+  dns+=Math.floor(Math.random()*3);
+  const el=document.getElementById('dns-count');
+  if(el) el.textContent=dns.toLocaleString();
+},2000);
+
+// ── SCAN INPUT ────────────────────────────────────────
+document.getElementById('scan-input').addEventListener('keydown',e=>{
+  if(e.key==='Enter') runScan();
+});
+
+const THREATS={
+  keylogger:{cls:'r-danger',icon:'🦠',title:'Keylogger Detected!',sub:'Process hooks keyboard APIs to capture credentials. Severity: CRITICAL · Action: Quarantine immediately · Hash: 69630e4574ec6798'},
+  svchost32:{cls:'r-danger',icon:'⛔',title:'Malicious Process Detected',sub:'svchost32.dll impersonates a Windows system file. Known Pegasus-variant. Severity: CRITICAL · Terminate & quarantine.'},
+  msupdate:{cls:'r-warn',icon:'⚠️',title:'Suspicious File Flagged',sub:'msupdate.exe is not a Microsoft file. Communicating with 45.142.212.100:4444. Severity: HIGH · Investigate before quarantine.'},
+  darkcomet:{cls:'r-danger',icon:'💀',title:'RAT Detected — DarkComet',sub:'Remote Access Trojan with full desktop control capability. Severity: CRITICAL · Isolate system immediately.'},
+  spy:{cls:'r-danger',icon:'🕵️',title:'Spyware Signature Match',sub:'GenericSpyware detected. Monitoring keystrokes and screen. Severity: HIGH · Quarantine recommended.'},
+  'google.com':{cls:'r-clean',icon:'✅',title:'URL is Safe',sub:'google.com is a verified trusted domain. No threats found · 0/70 engines flagged.'},
+  'github.com':{cls:'r-clean',icon:'✅',title:'URL is Safe',sub:'github.com is a verified trusted domain. No threats found · Clean.'},
+  localhost:{cls:'r-clean',icon:'✅',title:'Local Address — Safe',sub:'127.0.0.1 / localhost is your own machine. No external threat.'},
+};
+
+function runScan(){
+  const val=document.getElementById('scan-input').value.trim().toLowerCase();
+  if(!val) return;
+  const res=document.getElementById('scan-results');
+  res.innerHTML=`<div class="scanning-box">
+    <div class="spinner"></div>
+    <div style="font-size:12px;color:var(--text3);font-family:var(--font)">Scanning "${val}"…</div>
+    <div class="scan-progress-bar"><div class="scan-progress-fill"></div></div>
+  </div>`;
+  setTimeout(()=>{
+    let match=null;
+    for(const key in THREATS){ if(val.includes(key)){match=THREATS[key];break;} }
+    if(!match) match={cls:'r-clean',icon:'✅',title:'No Threats Found',sub:`"${val}" passed all 70 detection checks. No spyware signatures matched. MD5 clean.`};
+    res.innerHTML=`<div class="result-item ${match.cls}">
+      <div class="r-icon">${match.icon}</div>
+      <div><div class="r-title">${match.title}</div><div class="r-sub">${match.sub}</div></div>
+    </div>`;
+  },2000);
+}
+
+// ── QUICK SCAN ────────────────────────────────────────
+const QR={
+  memory:[
+    {cls:'r-danger',icon:'🦠',t:'Keylogger Hook Detected',s:'PID 4821 — msupdate.exe hooking SetWindowsHookEx (keyboard API)'},
+    {cls:'r-warn',icon:'⚠️',t:'Hidden Process Found',s:'PID 9042 — SYSTEM privileges, not in Task Manager, port 9001 open'},
+    {cls:'r-clean',icon:'✅',t:'94 Processes Clean',s:'All other running processes passed memory integrity check'},
+  ],
+  startup:[
+    {cls:'r-warn',icon:'⚠️',t:'Suspicious Registry Entry',s:'HKCU\\Run\\WindowsHelper → C:\\Users\\Public\\helper.exe · Unverified publisher'},
+    {cls:'r-clean',icon:'✅',t:'12 Startup Items Clean',s:'All other startup entries verified with valid digital signatures'},
+  ],
+  browser:[
+    {cls:'r-danger',icon:'🦠',t:'Malicious Extension Found',s:'ID 88fa2 — "PDF Reader Pro" · Unknown publisher · Accesses all site data + keystrokes'},
+    {cls:'r-clean',icon:'✅',t:'6 Extensions Clean',s:'Remaining extensions have valid publisher signatures and limited permissions'},
+  ],
+  ports:[
+    {cls:'r-danger',icon:'🚨',t:'Port 9001 Open — Tor C2',s:'msupdate.exe tunnelling via Tor · Data exfiltration risk · CRITICAL'},
+    {cls:'r-warn',icon:'⚠️',t:'Port 8080 Anomalous Traffic',s:'unknown.exe: 12 MB/s outbound to 91.108.4.100'},
+    {cls:'r-clean',icon:'✅',t:'Standard Ports Normal',s:'Ports 80, 443, 53, 445 showing baseline traffic levels'},
+  ],
+  full:[
+    {cls:'r-danger',icon:'🦠',t:'Full Scan: 3 Threats Found',s:'Pegasus-variant.dll · KeyloggerX.exe · adware.cookietrack — All quarantined'},
+    {cls:'r-warn',icon:'⚠️',t:'2 Suspicious Items for Review',s:'Require manual investigation before automated quarantine'},
+    {cls:'r-clean',icon:'✅',t:'3,841 Files Clean',s:'Full scan complete in 4m 32s · Threat database: 12,847 signatures · Up to date'},
+  ],
+};
+
+function quickScan(type){
+  const c=document.getElementById('quick-result');
+  c.style.display='block';
+  c.innerHTML=`<div class="card-title" style="margin-bottom:14px">Running ${type} scan…</div>
+  <div class="scanning-box">
+    <div class="spinner"></div>
+    <div style="font-size:12px;color:var(--text3);font-family:var(--font)">Analyzing system…</div>
+    <div class="scan-progress-bar"><div class="scan-progress-fill"></div></div>
+  </div>`;
+  setTimeout(()=>{
+    const items=QR[type];
+    const label=type.charAt(0).toUpperCase()+type.slice(1);
+    c.innerHTML=`<div class="card-title" style="margin-bottom:14px">${label} Scan Results</div>`+
+      items.map(i=>`<div class="result-item ${i.cls}">
+        <div class="r-icon">${i.icon}</div>
+        <div><div class="r-title">${i.t}</div><div class="r-sub">${i.s}</div></div>
+      </div>`).join('');
+    c.scrollIntoView({behavior:'smooth',block:'nearest'});
+  },2500);
+}
+</script>
+</body>
+</html>
